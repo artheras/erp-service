@@ -9,6 +9,13 @@ from typing import Any, Dict
 
 from erp_service.agents.workflow import run_warehouse_analysis
 from erp_service.client import WarehouseERPClient
+from erp_service.freight import tool_analyze_logistics_data
+from erp_service.logistics import (
+    CARRIERS_SCHEMA,
+    INVENTORY_SCHEMA,
+    tool_plan_inventory_policy,
+    tool_score_carriers,
+)
 
 SERVER_INFO = {"name": "erp-service", "version": "0.1.0"}
 PROTOCOL_VERSION = "2024-11-05"
@@ -36,14 +43,35 @@ TOOLS = [
             "required": ["warehouse_id"],
         },
     },
+    {
+        "name": "erp.inventory.plan",
+        "description": INVENTORY_SCHEMA.get("description", "3PL inventory reorder & safety stock policy."),
+        "inputSchema": INVENTORY_SCHEMA.get("parameters", {"type": "object", "properties": {}}),
+    },
+    {
+        "name": "erp.carriers.score",
+        "description": CARRIERS_SCHEMA.get("description", "3PL carrier scorecard & billing anomaly audit."),
+        "inputSchema": CARRIERS_SCHEMA.get("parameters", {"type": "object", "properties": {}}),
+    },
+    {
+        "name": "erp.freight.audit",
+        "description": "Audit freight spend, on-time rate, and weight billing anomalies from waybills or CSV/JSON.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "waybills": {"type": "array", "items": {"type": "object"}},
+                "file_path": {"type": "string"},
+            },
+        },
+    },
 ]
 
 
 async def dispatch_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-    warehouse_id = str(arguments.get("warehouse_id") or "").strip()
-    if not warehouse_id:
-        raise ValueError("warehouse_id is required")
     if name == "erp.warehouse.analyze":
+        warehouse_id = str(arguments.get("warehouse_id") or "").strip()
+        if not warehouse_id:
+            raise ValueError("warehouse_id is required")
         result, snapshot = await run_warehouse_analysis(warehouse_id)
         return {
             "warehouse_id": warehouse_id,
@@ -51,8 +79,17 @@ async def dispatch_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             "snapshot_counts": {k: len(snapshot.get(k, [])) for k in ("connectors", "inbounds", "skus", "locations")},
         }
     if name == "erp.warehouse.snapshot":
+        warehouse_id = str(arguments.get("warehouse_id") or "").strip()
+        if not warehouse_id:
+            raise ValueError("warehouse_id is required")
         client = WarehouseERPClient.from_env()
         return await client.fetch_snapshot(warehouse_id)
+    if name == "erp.inventory.plan":
+        return tool_plan_inventory_policy(arguments)
+    if name == "erp.carriers.score":
+        return tool_score_carriers(arguments)
+    if name == "erp.freight.audit":
+        return tool_analyze_logistics_data(arguments)
     raise ValueError(f"Unknown tool: {name}")
 
 

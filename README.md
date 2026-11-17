@@ -11,7 +11,7 @@ Standalone Warehouse ERP & Logistics analysis service and MCP server extracted f
   - `warehouse_inventory_health`
   - `warehouse_inbound_exceptions`
   - `warehouse_logistics_sync`
-- **MCP Server (`erp-service-mcp`)**: Exposes `erp.warehouse.analyze` and `erp.warehouse.snapshot` over stdio JSON-RPC 2.0 for `aria-code`.
+- **MCP Server (`erp-service-mcp`)**: Exposes `erp.warehouse.analyze`, `erp.warehouse.snapshot`, `erp.inventory.plan`, `erp.carriers.score`, and `erp.freight.audit` over stdio JSON-RPC 2.0 for `aria-code`.
 
 ## Installation & Testing
 
