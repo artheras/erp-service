@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "erp-service"
+version = "0.1.0"
+description = "Standalone Warehouse ERP analysis service and MCP server for aria-code."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+erp-service-mcp = "erp_service.mcp_server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
