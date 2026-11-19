@@ -7,6 +7,7 @@ import json
 import sys
 from typing import Any, Dict
 
+from erp_service.agents.warehouse_task import DESCRIPTION as WAREHOUSE_TASK_DESCRIPTION, SCHEMA as WAREHOUSE_TASK_SCHEMA, WAREHOUSE_AGENT
 from erp_service.agents.workflow import run_warehouse_analysis
 from erp_service.client import WarehouseERPClient
 from erp_service.freight import tool_analyze_logistics_data
@@ -64,6 +65,11 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "erp.warehouse.task",
+        "description": WAREHOUSE_TASK_DESCRIPTION,
+        "inputSchema": WAREHOUSE_TASK_SCHEMA,
+    },
 ]
 
 
@@ -90,6 +96,10 @@ async def dispatch_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         return tool_score_carriers(arguments)
     if name == "erp.freight.audit":
         return tool_analyze_logistics_data(arguments)
+    if name == "erp.warehouse.task":
+        payload = dict(arguments)
+        payload.setdefault("_warehouse_scope", "mcp")
+        return WAREHOUSE_AGENT.handle(payload)
     raise ValueError(f"Unknown tool: {name}")
 
 

@@ -17,6 +17,7 @@ def test_mcp_initialize_and_tools_list():
         "erp.inventory.plan",
         "erp.carriers.score",
         "erp.freight.audit",
+        "erp.warehouse.task",
     }
 
 
