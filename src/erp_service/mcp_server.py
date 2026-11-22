@@ -81,7 +81,80 @@ TOOLS = [
         "annotations": _READ_ONLY_ANNOTATIONS,
         "inputSchema": WAREHOUSE_TASK_SCHEMA,
     },
+    {
+        "name": "erp.shipper.digest",
+        "description": "Build a tenant-isolated daily shipper digest (reorder alerts, stockout risks, freight billing anomalies, and carrier lane switch recommendations) strictly scoped to a single owner_id.",
+        "annotations": _READ_ONLY_ANNOTATIONS,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "owner_id": {"type": "string", "description": "Required shipper/tenant identifier (e.g. ACME)."},
+                "skus": {"type": "array", "items": {"type": "object"}, "description": "Inventory SKU records."},
+                "inventory_file": {"type": "string", "description": "Path to inventory CSV/JSON file."},
+                "waybills": {"type": "array", "items": {"type": "object"}, "description": "Waybill records."},
+                "waybills_file": {"type": "string", "description": "Path to waybills CSV/JSON file."},
+            },
+            "required": ["owner_id"],
+        },
+    },
 ]
+
+
+def _build_shipper_digest(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    import os
+    from erp_service.logistics.tenancy import OWNER_SCOPE_ENV
+
+    owner_id = str(arguments.get("owner_id") or "").strip()
+    if not owner_id:
+        raise ValueError("owner_id is required for erp.shipper.digest")
+
+    prev_scope = os.environ.get(OWNER_SCOPE_ENV)
+    os.environ[OWNER_SCOPE_ENV] = owner_id
+    try:
+        inventory_report = None
+        carrier_report = None
+        problems: list[str] = []
+
+        if arguments.get("skus") or arguments.get("inventory_file"):
+            inv_args: Dict[str, Any] = {"owner_id": owner_id}
+            if arguments.get("skus") is not None:
+                inv_args["skus"] = arguments["skus"]
+            if arguments.get("inventory_file"):
+                inv_args["file_path"] = arguments["inventory_file"]
+            inv_res = tool_plan_inventory_policy(inv_args)
+            if inv_res.get("success"):
+                inventory_report = inv_res.get("data", inv_res)
+            else:
+                problems.append(str(inv_res.get("error") or "inventory analysis failed"))
+
+        if arguments.get("waybills") or arguments.get("waybills_file"):
+            wb_args: Dict[str, Any] = {"owner_id": owner_id}
+            if arguments.get("waybills") is not None:
+                wb_args["waybills"] = arguments["waybills"]
+            if arguments.get("waybills_file"):
+                wb_args["file_path"] = arguments["waybills_file"]
+            wb_res = tool_score_carriers(wb_args)
+            if wb_res.get("success"):
+                carrier_report = wb_res.get("data", wb_res)
+            else:
+                problems.append(str(wb_res.get("error") or "carrier analysis failed"))
+
+        if inventory_report is None and carrier_report is None and not problems:
+            problems.append("Provide skus/inventory_file and/or waybills/waybills_file")
+
+        return {
+            "success": len(problems) == 0,
+            "owner_id": owner_id,
+            "scope": {"mode": "single_owner", "owner_id": owner_id, "client_facing": True},
+            "inventory": inventory_report,
+            "carriers": carrier_report,
+            "problems": problems,
+        }
+    finally:
+        if prev_scope is None:
+            os.environ.pop(OWNER_SCOPE_ENV, None)
+        else:
+            os.environ[OWNER_SCOPE_ENV] = prev_scope
 
 
 async def dispatch_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -111,6 +184,8 @@ async def dispatch_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         payload = dict(arguments)
         payload.setdefault("_warehouse_scope", "mcp")
         return WAREHOUSE_AGENT.handle(payload)
+    if name == "erp.shipper.digest":
+        return _build_shipper_digest(arguments)
     raise ValueError(f"Unknown tool: {name}")
 
 

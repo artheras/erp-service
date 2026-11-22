@@ -18,6 +18,7 @@ def test_mcp_initialize_and_tools_list():
         "erp.carriers.score",
         "erp.freight.audit",
         "erp.warehouse.task",
+        "erp.shipper.digest",
     }
 
 
@@ -72,3 +73,32 @@ def test_mcp_tools_call_freight_audit():
     assert payload["success"] is True
     assert payload["data"]["total_freight_spend"] == 200.0
     assert payload["data"]["overall_on_time_rate"] == 50.0
+
+
+def test_mcp_tools_call_shipper_digest_enforces_owner_scope():
+    resp = asyncio.run(
+        mcp_server.handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "tools/call",
+                "params": {
+                    "name": "erp.shipper.digest",
+                    "arguments": {
+                        "owner_id": "ACME",
+                        "skus": [
+                            {"owner_id": "ACME", "sku": "A100", "on_hand": 5, "daily_demand": [4, 5, 6, 5, 4, 5, 5], "lead_time_days": 5},
+                            {"owner_id": "BETA", "sku": "B100", "on_hand": 1, "daily_demand": [8, 8, 8, 8, 8, 8, 8], "lead_time_days": 5},
+                        ],
+                    },
+                },
+            }
+        )
+    )
+    assert resp["result"]["isError"] is False
+    payload = json.loads(resp["result"]["content"][0]["text"])
+    assert payload["success"] is True
+    assert payload["owner_id"] == "ACME"
+    sku_ids = [item["sku"] for item in payload["inventory"]["items"]]
+    assert sku_ids == ["A100"]
+
