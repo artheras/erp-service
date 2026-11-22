@@ -20,11 +20,17 @@ from erp_service.logistics import (
 
 SERVER_INFO = {"name": "erp-service", "version": "0.1.0"}
 PROTOCOL_VERSION = "2024-11-05"
+_READ_ONLY_ANNOTATIONS = {
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+}
 
 TOOLS = [
     {
         "name": "erp.warehouse.analyze",
         "description": "Run read-only 5-agent Warehouse ERP analysis for a warehouse_id.",
+        "annotations": _READ_ONLY_ANNOTATIONS,
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -36,6 +42,7 @@ TOOLS = [
     {
         "name": "erp.warehouse.snapshot",
         "description": "Fetch raw read-only ERP snapshot (connectors, inbounds, skus, locations) for a warehouse_id.",
+        "annotations": _READ_ONLY_ANNOTATIONS,
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -47,16 +54,19 @@ TOOLS = [
     {
         "name": "erp.inventory.plan",
         "description": INVENTORY_SCHEMA.get("description", "3PL inventory reorder & safety stock policy."),
+        "annotations": _READ_ONLY_ANNOTATIONS,
         "inputSchema": INVENTORY_SCHEMA.get("parameters", {"type": "object", "properties": {}}),
     },
     {
         "name": "erp.carriers.score",
         "description": CARRIERS_SCHEMA.get("description", "3PL carrier scorecard & billing anomaly audit."),
+        "annotations": _READ_ONLY_ANNOTATIONS,
         "inputSchema": CARRIERS_SCHEMA.get("parameters", {"type": "object", "properties": {}}),
     },
     {
         "name": "erp.freight.audit",
         "description": "Audit freight spend, on-time rate, and weight billing anomalies from waybills or CSV/JSON.",
+        "annotations": _READ_ONLY_ANNOTATIONS,
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -68,6 +78,7 @@ TOOLS = [
     {
         "name": "erp.warehouse.task",
         "description": WAREHOUSE_TASK_DESCRIPTION,
+        "annotations": _READ_ONLY_ANNOTATIONS,
         "inputSchema": WAREHOUSE_TASK_SCHEMA,
     },
 ]
