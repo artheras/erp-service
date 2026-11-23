@@ -102,3 +102,13 @@ def test_mcp_tools_call_shipper_digest_enforces_owner_scope():
     sku_ids = [item["sku"] for item in payload["inventory"]["items"]]
     assert sku_ids == ["A100"]
 
+
+def test_contracts_tools_json_matches_mcp_tools():
+    from pathlib import Path
+
+    contract_path = Path(__file__).resolve().parents[1] / "contracts" / "tools.json"
+    assert contract_path.is_file()
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    assert contract["server"] == "erp-service"
+    assert contract["tools"] == mcp_server.TOOLS
+

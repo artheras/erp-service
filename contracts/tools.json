@@ -1,0 +1,304 @@
+{
+  "server": "erp-service",
+  "tools": [
+    {
+      "name": "erp.warehouse.analyze",
+      "description": "Run read-only 5-agent Warehouse ERP analysis for a warehouse_id.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "warehouse_id": {
+            "type": "string",
+            "description": "Warehouse identifier, e.g. WH-CN-01"
+          }
+        },
+        "required": [
+          "warehouse_id"
+        ]
+      }
+    },
+    {
+      "name": "erp.warehouse.snapshot",
+      "description": "Fetch raw read-only ERP snapshot (connectors, inbounds, skus, locations) for a warehouse_id.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "warehouse_id": {
+            "type": "string",
+            "description": "Warehouse identifier, e.g. WH-CN-01"
+          }
+        },
+        "required": [
+          "warehouse_id"
+        ]
+      }
+    },
+    {
+      "name": "erp.inventory.plan",
+      "description": "Reorder points, safety stock, order quantities, ABC/XYZ classes and dead/slow stock for a shipper's SKUs, from supplied demand history and lead times. Formulas are stated in the result. Refuses to mix shippers' data unless told which one.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "CSV or JSON file of SKU records"
+          },
+          "skus": {
+            "type": "array",
+            "description": "SKU records: sku, on_hand, lead_time_days, daily_demand"
+          },
+          "service_level": {
+            "type": "number",
+            "description": "Target cycle service level, default 0.95"
+          },
+          "review_period_days": {
+            "type": "number",
+            "description": "Days between reviews, default 7"
+          },
+          "owner_id": {
+            "type": "string",
+            "description": "Shipper (货主) to analyse. Required when records span several shippers."
+          },
+          "all_owners": {
+            "type": "boolean",
+            "description": "Internal 3PL view across all shippers. Output is marked not for client distribution."
+          }
+        }
+      }
+    },
+    {
+      "name": "erp.carriers.score",
+      "description": "Carrier scorecard by lane (on-time rate with a confidence lower bound, median cost/kg, exception rate), freight cost anomalies and like-for-like savings, from supplied waybills. Refuses to mix shippers' data unless told which one.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "CSV or JSON file of waybills"
+          },
+          "waybills": {
+            "type": "array",
+            "description": "Waybills: carrier, total_cost, origin, destination, billed_weight_kg, is_on_time"
+          },
+          "min_shipments": {
+            "type": "integer",
+            "description": "Minimum shipments for a carrier-lane to be ranked, default 20"
+          },
+          "owner_id": {
+            "type": "string",
+            "description": "Shipper (货主) to analyse. Required when records span several shippers."
+          },
+          "all_owners": {
+            "type": "boolean",
+            "description": "Internal 3PL view across all shippers. Output is marked not for client distribution."
+          }
+        }
+      }
+    },
+    {
+      "name": "erp.freight.audit",
+      "description": "Audit freight spend, on-time rate, and weight billing anomalies from waybills or CSV/JSON.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "waybills": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "file_path": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "erp.warehouse.task",
+      "description": "Delegate a bounded warehouse navigation simulation to the warehouse task agent. Use action=create with the user's goal, a known or explicitly requested demo scenario, constraints and a unique request_id. Then start once with task_id/request_id and use wait (timeout_ms <= 1000) or status until terminal. The native agent observes, plans, moves, replans after obstacles, and verifies the goal itself. Actions: health, create, start, status, wait, stop, obstacle, trace. Never report completion from a start acknowledgement: require completed and verified=true. Simulation only; no hardware, real warehouse sensing, or paid inference in the executor.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "health",
+              "create",
+              "start",
+              "status",
+              "wait",
+              "stop",
+              "obstacle",
+              "trace"
+            ]
+          },
+          "goal": {
+            "type": "string",
+            "description": "User's task goal and constraints, as context; never a shell command."
+          },
+          "scenario": {
+            "type": "object",
+            "properties": {
+              "width": {
+                "type": "integer"
+              },
+              "height": {
+                "type": "integer"
+              },
+              "start": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "goal": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "obstacles": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            },
+            "required": [
+              "width",
+              "height",
+              "start",
+              "goal",
+              "obstacles"
+            ],
+            "additionalProperties": false
+          },
+          "constraints": {
+            "type": "object",
+            "properties": {
+              "max_steps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 512
+              },
+              "deadline_ms": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 120000
+              }
+            },
+            "additionalProperties": false
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Required only for create/start/obstacle. Stable unique operation ID; reuse only for an identical operation. Omit for health/status/wait/stop/trace."
+          },
+          "cell": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "Required only for wait. Maximum 1000ms per call; query again if still running."
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false,
+        "description": "Goal-directed logical warehouse simulation. Use only fields applicable to the selected action. create: action, request_id, goal, scenario, optional constraints. start: action, task_id, request_id. status/stop/trace: action, task_id ONLY. wait: action, task_id, timeout_ms ONLY. obstacle: action, task_id, request_id, cell. health: action ONLY. Never send request_id to read actions."
+      }
+    },
+    {
+      "name": "erp.shipper.digest",
+      "description": "Build a tenant-isolated daily shipper digest (reorder alerts, stockout risks, freight billing anomalies, and carrier lane switch recommendations) strictly scoped to a single owner_id.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner_id": {
+            "type": "string",
+            "description": "Required shipper/tenant identifier (e.g. ACME)."
+          },
+          "skus": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Inventory SKU records."
+          },
+          "inventory_file": {
+            "type": "string",
+            "description": "Path to inventory CSV/JSON file."
+          },
+          "waybills": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Waybill records."
+          },
+          "waybills_file": {
+            "type": "string",
+            "description": "Path to waybills CSV/JSON file."
+          }
+        },
+        "required": [
+          "owner_id"
+        ]
+      }
+    }
+  ]
+}
