@@ -1,8 +1,10 @@
-"""Minimal stdio JSON-RPC 2.0 MCP server for erp-service."""
+"""Minimal stdio or Streamable HTTP JSON-RPC 2.0 MCP server for erp-service."""
 
 from __future__ import annotations
 
+import argparse
 import asyncio
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import sys
 from typing import Any, Dict
@@ -236,7 +238,73 @@ async def handle_request(req: Dict[str, Any]) -> Dict[str, Any] | None:
     }
 
 
-def main() -> None:
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="erp-service-mcp",
+        description="ERP Service MCP server (stdio by default, or Streamable HTTP).",
+    )
+    parser.add_argument(
+        "--transport",
+        choices=("stdio", "streamable-http"),
+        default="stdio",
+        help="MCP transport mode (default: stdio).",
+    )
+    parser.add_argument("--host", default="127.0.0.1", help="HTTP bind host.")
+    parser.add_argument("--port", type=int, default=8766, help="HTTP bind port.")
+    return parser
+
+
+def make_http_handler():
+    class _McpHttpHandler(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+            return
+
+        def _send_json(self, status: int, payload: Dict[str, Any]) -> None:
+            raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def do_GET(self) -> None:  # noqa: N802
+            if self.path == "/healthz":
+                self._send_json(200, {"status": "ok", "service": SERVER_INFO["name"], "transport": "streamable-http"})
+            else:
+                self._send_json(404, {"error": "Not found"})
+
+        def do_POST(self) -> None:  # noqa: N802
+            if self.path not in ("/", "/mcp"):
+                self._send_json(404, {"error": "Not found"})
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length)
+            try:
+                req = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                self._send_json(400, {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": str(exc)}})
+                return
+            resp = asyncio.run(handle_request(req))
+            if resp is None:
+                self.send_response(202)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self._send_json(200, resp)
+
+    return _McpHttpHandler
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_arg_parser().parse_args(argv)
+    if args.transport == "streamable-http":
+        server = ThreadingHTTPServer((args.host, args.port), make_http_handler())
+        try:
+            server.serve_forever()
+        finally:
+            server.server_close()
+        return
+
     for line in sys.stdin:
         raw = line.strip()
         if not raw:
